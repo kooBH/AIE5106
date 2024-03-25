@@ -34,7 +34,7 @@ def count_normal(tokens, ref,n=1):
             if gen_gram == ref_gram:
                 count += 1
                 break
-    #print(count)
+    #print("count : ",count)
     return count
 
 
@@ -57,16 +57,60 @@ def count_clip(tokens, ref,n=1):
     for gen_gram in gen_grams:
         count = 0
         for ref_gram in ref_grams :
+            
             if gen_gram == ref_gram :
                 count +=1
+            #print("{} {} | {}".format(gen_gram, ref_gram,max_ref))
         max_ref[gen_gram] = count
-    #print(max_ref)
+    #print("clip : ", max_ref)
     c = 0
     for v in max_ref:
         c += max_ref[v]
     
     return c
 
+def cliped_precision(gen,ref,n):
+    numer = count_clip(gen,ref,n)
+    denom = len(ngrams(gen,n))
+    if denom == 0:
+        #print("{} / {} : {}".format(numer,denom,1))
+        return 1
+    else :
+        #print("{} / {} : {}".format(numer,denom,numer/denom))
+        return numer/denom
+    
+def recall(gen,ref,n):
+    numer = count_clip(gen,ref,n)
+    denom = len(ngrams(ref,n))
+
+    #print("recall {} {}".format(numer,denom))
+    return numer/denom
+    
+def LCS(gen,ref):
+    n = 1
+    l_gen = len(gen)
+    l_ref = len(ref)
+
+    max_c= 0
+    max_seq = 0
+
+    # Longest Common Sequence
+    for i in range(l_gen):
+        c = 0
+        l_k = 0
+        seq = []
+        for j in range(i,l_gen) : 
+            for k in range(l_k,l_ref) : 
+                if gen[j] == ref[k] :
+                    c+=1
+                    l_k = k
+                    seq.append(gen[j])
+                    break
+        if c > max_c:
+            max_c = c
+            max_seq = seq
+
+    return max_c
 
 # BLEU-4(bilingual evaluation understudy)
 # https://en.wikipedia.org/wiki/BLEU
@@ -74,16 +118,9 @@ def count_clip(tokens, ref,n=1):
 def BLEU(ref, gen,nGram):
     gen = word_tokenize(gen)
     ref = word_tokenize(ref)
+    #print(gen)
+    #print(ref)
 
-    def cliped_precision(gram,ref,n):
-        numer = count_clip(gram,ref,n)
-        denom = count_normal(gram,ref,n)
-        if denom == 0:
-            return 1
-        else :
-            return numer/denom
-
-        #print("{} / {} : {}".format(numer,denom,numer/denom))
     val = BP(gen,ref)
     precision = 1
     for n in range(1,nGram+1):
@@ -93,31 +130,58 @@ def BLEU(ref, gen,nGram):
 
     return val
 
+def ROUGE(ref,gen,nGram):
+    gen = word_tokenize(gen)
+    ref = word_tokenize(ref)
+    #print(gen)
+    #print(ref)
 
+    precision = cliped_precision(gen,ref,nGram)
+    v_recall = recall(gen,ref,nGram)
+    if v_recall + precision == 0:
+        return 0
+    
+    v_rouge = (2*precision*v_recall)/(precision+v_recall)
+
+    return v_rouge
+
+def ROUGE_L(ref,gen):
+    gen = word_tokenize(gen)
+    ref = word_tokenize(ref)
+    #print(gen)
+    #print(ref)
+
+    lcs = LCS(gen,ref)
+    p = lcs/len(ngrams(gen,1))
+    r = lcs/len(ngrams(ref,1))
+    return (2*p*r)/(p+r)
 
 if __name__ == "__main__" : 
     parser = argparse.ArgumentParser()
-    parser.add_argument("file_in", type=str)
-    parser.add_argument("file_out", type=str)
+    parser.add_argument("path_ref", type=str)
+    parser.add_argument("path_gen", type=str)
     args = parser.parse_args()
 
     ldx = 0
 
-    with open(args.file_in,"r") as f_ref:
-        with open(args.file_out,"r") as f_gen:
+    t_BLUE4 = 0.0
+    t_ROGUE2 = 0.0
+    t_ROGUE_L =0.0
+
+
+    with open(args.path_ref,"r") as f_ref:
+        with open(args.path_gen,"r") as f_gen:
             l_ref = f_ref.readlines()
             l_gen = f_gen.readlines()
             for idx in range(len(l_gen)):
                 ref = l_ref[idx]
                 gen = l_gen[idx]
-                print("{} => {}".format(gen,ref))
-                print(BLEU(ref,gen,4))
+                #print("{} \n=>\n{}".format(gen,ref))
+                t_BLUE4 += BLEU(ref,gen,4)
+                t_ROGUE2 += ROUGE(ref,gen,2)
+                t_ROGUE_L += ROUGE_L(ref,gen)
 
-                import nltk.translate.bleu_score as bleu
-
-                print(bleu.sentence_bleu([ref],gen))
-
-                if ldx > 0 : 
-                    break
                 ldx +=1
 
+        
+    print("Results – BLEU: {:.4f} ROUGE-2: {:.4f} ROUGE-L: {:.4f}".format(t_BLUE4/ldx,t_ROGUE2/ldx,t_ROGUE_L/ldx))
