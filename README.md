@@ -5,3 +5,9 @@
 + BLUE  
 + ROUGE-2  
 + ROUGE-L  
+
+## Assignment 2  
++ Named Entity Recogintion    
+
+## Final Assignment  
++ Retrieval Augmented Generation  
